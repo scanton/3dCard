@@ -1,0 +1,264 @@
+You are coding inside an empty Git repo. Create a Next.js 14 + TypeScript demo app that renders a 3D greeting card using three.js via react-three-fiber.
+
+Tech + packages
+
+Next.js App Router (TypeScript)
+
+three
+
+@react-three/fiber
+
+@react-three/drei
+
+zustand (lightweight state)
+
+framer-motion (for UI button), and tweening with @react-spring/three for mesh rotations (or a simple manual lerp in useFrame if you prefer—pick one and implement cleanly)
+
+ESLint + prettier config (basic)
+
+File/Folder layout
+/public/images/
+  background.png
+  card-front.png
+  card-inside-left.png
+  card-inside-right.png
+  card-back.png
+
+/app/
+  globals.css
+  layout.tsx
+  page.tsx
+
+/components/
+  CardScene.tsx
+  CardRig.tsx
+  GreetingCard.tsx
+  ResetViewButton.tsx
+  UiOverlay.tsx
+
+/lib/
+  useCardStore.ts
+
+
+Important: Assume the five PNGs already exist in /images at the repo root. If they do, copy or move them to /public/images/ (Next only serves from /public). Keep the same filenames.
+
+What the demo should do
+
+A browser-runnable Next app that shows a 3D greeting card centered on a soft background. It should:
+
+Start state: The front of the card faces the camera.
+
+Click interactions:
+
+Clicking the front cover plays an opening animation: the front panel rotates around the left spine to reveal the inside of the card (both inside faces visible).
+
+When opened:
+
+Clicking the left inside face closes the card and ends with the front facing outward (default state).
+
+Clicking the right inside face closes the card and ends with the back facing outward.
+
+Drag rotation: Users can click-and-drag to orbit the card around its center (no zoom, no pan). Use OrbitControls from drei with:
+
+enableZoom={false}, enablePan={false}
+
+minPolarAngle and maxPolarAngle clamped a bit so the user can’t flip under the floor (e.g., 0.6..1.2 radians).
+
+Reset view button: A floating UI button (“Reset View”) returns the camera and the card to the default view (front facing, upright). Smoothly tween back.
+
+Textures: Map images to the correct faces:
+
+card-front.png → front outside
+
+card-back.png → back outside
+
+card-inside-left.png → left inside
+
+card-inside-right.png → right inside
+
+background.png → large plane or a skydome behind the card (soft blur if you like).
+
+Performance: Use one directional light + ambient, and a subtle shadow on a floor plane. Keep geometry light.
+
+Dimensions & modeling details
+
+Model the card as two Plane meshes (left and right halves), each w/2 x h, hinged on the center spine (x=0). Example size: w = 2, h = 1.4, thickness = 0.01 (use meshPhysicalMaterial with doubleSide where needed).
+
+Front cover is the right half (x>0) when facing the viewer.
+
+Back cover is the left half (x<0) when facing the viewer.
+
+Create a group called CardRig with two children:
+
+LeftLeaf pivoted at the spine (its right edge).
+
+RightLeaf pivoted at the spine (its left edge).
+
+Texture mapping:
+
+Outside of LeftLeaf → back texture (visible when closed-back or when rotated).
+
+Inside of LeftLeaf → inside-left texture.
+
+Outside of RightLeaf → front texture (visible on start).
+
+Inside of RightLeaf → inside-right texture.
+
+When opening from the front, animate RightLeaf.rotation.y from 0 to -Math.PI around the spine so the inside faces are visible.
+
+To close to front, animate RightLeaf back to 0.
+
+To close to back from the open state:
+
+Animate LeftLeaf.rotation.y from 0 to Math.PI so the left leaf swings over the right and ends with the back facing outward.
+
+Then snap or tween rotations to a stable closed-back configuration:
+
+Closed-front target: LeftLeaf.rotation.y = 0, RightLeaf.rotation.y = 0
+
+Closed-back target: LeftLeaf.rotation.y = Math.PI, RightLeaf.rotation.y = -Math.PI
+
+Ensure the card never visually intersects badly (tweak order/timing so one leaf clears before the other returns).
+
+App state machine
+
+Implement a small zustand store with these states:
+
+"closed-front" (initial)
+
+"opening"
+
+"open"
+
+"closing-to-front"
+
+"closing-to-back"
+
+"closed-back"
+
+Expose actions:
+
+openFromFront()
+
+closeToFront()
+
+closeToBack()
+
+resetView() (also resets camera + controls target)
+
+Clicks should be handled via raycasting on named meshes:
+
+Name the meshes: "front-cover", "inside-left", "inside-right".
+
+Logic:
+
+If state is "closed-front" and user clicks "front-cover" → openFromFront().
+
+If state is "open" and user clicks "inside-left" → closeToFront().
+
+If state is "open" and user clicks "inside-right" → closeToBack().
+
+Animation approach
+
+Pick one:
+
+react-spring: Use useSpring to drive rotationY for each leaf and a separate spring for camera/controls reset.
+
+Manual in useFrame: Keep target rotations in state; lerp current rotations each frame until within epsilon.
+
+Either way, ensure easing looks smooth (~400–700ms per swing). Avoid z-fighting by slightly offsetting inside/outside materials or using polygonOffset.
+
+Implementation notes
+
+Load textures with useLoader(TextureLoader, [...]) or useTexture from drei. Set encoding = sRGBEncoding, flipY = false where appropriate.
+
+Materials: meshStandardMaterial with roughness ~0.8, metalness 0.
+
+Shadows: directionalLight casts, floor receives.
+
+Background: create a big plane at z = -5 with background.png (or a sphere with backSide).
+
+Canvas: sized full viewport. Place the Reset View button in a simple UI overlay (UiOverlay) at top-right.
+
+Controls: <OrbitControls makeDefault enablePan={false} enableZoom={false} rotateSpeed={0.8} minPolarAngle={0.6} maxPolarAngle={1.2} /> and keep target at the card spine.
+
+Pages & components
+
+/app/layout.tsx
+
+Standard layout importing globals.css, set a dark neutral background for the page.
+
+/app/page.tsx
+
+Fullscreen container with <Canvas> from @react-three/fiber.
+
+Include <color attach="background" args={["#0f1013"]} /> for the renderer.
+
+Render <CardScene /> and <UiOverlay />.
+
+/components/CardScene.tsx
+
+Sets lighting, floor, background plane, <CardRig />, and <OrbitControls />.
+
+/components/CardRig.tsx
+
+Holds the two leaf meshes and click handlers (raycast).
+
+Handles open/close animations by updating springs or targets.
+
+Exports refs to leaves if needed for reset.
+
+/components/GreetingCard.tsx
+
+Responsible for building the meshes and applying the textures:
+
+LeftLeaf: outside(back) + inside(left)
+
+RightLeaf: outside(front) + inside(right)
+
+Each leaf can be a small group with two thin planes slightly offset (±0.0005) to avoid z-fighting.
+
+Expose mesh names for raycast: "front-cover", "inside-left", "inside-right" on the appropriate planes.
+
+/components/ResetViewButton.tsx
+
+A simple floating button (framer-motion hover). On click → resetView().
+
+/components/UiOverlay.tsx
+
+Positions the Reset button. Optionally add tiny instructions: “Click the cover to open. Click inside left to close to front; inside right to close to back. Drag to rotate.”
+
+/lib/useCardStore.ts
+
+Zustand store with the state machine and the animation targets/springs.
+
+Scripts
+
+Update package.json:
+
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  }
+}
+
+Acceptance criteria
+
+pnpm install then pnpm dev runs the app.
+
+On load, the front is facing. Clicking it opens smoothly.
+
+In the open position, clicking inside-left closes to front; clicking inside-right closes to back, ending with the back facing outward.
+
+Dragging rotates the card; Reset View squares it back to default smoothly.
+
+Textures are crisp and mapped to the correct sides. No obvious z-fighting.
+
+Code is clean, typed, and organized as above with comments explaining the hinge math and state transitions.
+
+README.md will include installation and usage instructions.
+
+Implement all files now.
