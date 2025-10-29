@@ -107,6 +107,8 @@ const GreetingCard = ({
   const outsideZ = CARD_THICKNESS / 2 + SURFACE_OFFSET;
   const insideZ = -CARD_THICKNESS / 2 - SURFACE_OFFSET;
   const halfLeaf = LEAF_WIDTH / 2;
+  const leftLeafOffset = leftRotation.to((angle) => -halfLeaf * (1 - Math.cos(angle)));
+  const rightLeafOffset = rightRotation.to((angle) => halfLeaf * (1 - Math.cos(angle)));
 
   const renderInteractionProps = (interaction: Interaction) =>
     interaction.enabled
@@ -124,7 +126,7 @@ const GreetingCard = ({
   return (
     <group>
       {/* Left leaf pivots around the spine at x = 0; geometry offset keeps the hinge stable. */}
-      <a.group rotation-y={leftRotation}>
+      <a.group position-x={leftLeafOffset} rotation-y={leftRotation}>
         <mesh
           name="back-cover"
           position={[-halfLeaf, 0, outsideZ]}
@@ -148,7 +150,7 @@ const GreetingCard = ({
       </a.group>
 
       {/* Right leaf pivots around the same spine; positive rotations close, negative open. */}
-      <a.group rotation-y={rightRotation}>
+      <a.group position-x={rightLeafOffset} rotation-y={rightRotation}>
         <mesh
           name="front-cover"
           position={[halfLeaf, 0, outsideZ]}
